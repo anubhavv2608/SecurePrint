@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import API_BASE from "../config";
+
 import { FaLock, FaFilePdf, FaCheckCircle, FaTimesCircle, FaPrint } from "react-icons/fa";
 
 export default function ShopView() {

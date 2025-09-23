@@ -11,6 +11,8 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import API_BASE from "../config";
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
