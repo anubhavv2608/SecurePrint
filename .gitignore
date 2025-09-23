@@ -1,0 +1,18 @@
+# Node dependencies
+node_modules/
+npm-debug.log
+yarn.lock
+package-lock.json
+
+# Build outputs
+dist/
+build/
+
+# Local environment files
+.env
+
+# Logs
+*.log
+
+# macOS system files
+.DS_Store
