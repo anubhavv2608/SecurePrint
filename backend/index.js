@@ -171,11 +171,12 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
   }
 
   res.json({
-    linkId: r.insertedId.toString(),
-    expiresAt,
-    url: `http://localhost:5173/shop/${r.insertedId}`,
-    otp, // ⚠️ only for demo
-  });
+  linkId: r.insertedId.toString(),
+  expiresAt,
+  url: `${FRONTEND_URL}/shop/${r.insertedId}`,
+  otp, // ⚠️ for demo only
+});
+
 });
 
 // ---- SEND LINK TO SHOPKEEPER ----
@@ -189,7 +190,9 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
     const linkDoc = await links.findOne({ _id: new ObjectId(linkId) });
     if (!linkDoc) return res.status(404).json({ error: "link not found" });
 
-    const frontendUrl = `http://localhost:5173/shop/${linkDoc._id}`;
+    const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+    const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
+
 
     await transporter.sendMail({
       from: process.env.FROM_EMAIL,
