@@ -1,4 +1,3 @@
-// backend/index.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -7,6 +6,7 @@ import multer from "multer";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
+import twilio from "twilio"; // ✅ Twilio import
 import { UsersColl, FilesColl, LinksColl, toObjectId } from "./models.js";
 
 dotenv.config();
@@ -19,9 +19,8 @@ const MONGO_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 const LINK_TTL_SECONDS = Number(process.env.LINK_TTL_SECONDS || 300);
 
-// ✅ define FRONTEND_URL globally once
-const FRONTEND_URL =
-  process.env.FRONTEND_URL || "http://localhost:5173";
+// ✅ Frontend URL for links
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 if (!MONGO_URI) throw new Error("MONGO_URI required in .env");
 
@@ -39,12 +38,18 @@ const links = LinksColl(db);
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // SSL
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
+
+// ✅ Twilio client setup
+const twilioClient = twilio(
+  process.env.TWILIO_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 // Verify SMTP
 transporter.verify((error) => {
@@ -193,10 +198,9 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
 
 // ---- SEND LINK TO SHOPKEEPER ----
 app.post("/api/link/send", authMiddleware, async (req, res) => {
-  const { linkId, email } = req.body;
-  if (!linkId || !email) {
-    return res.status(400).json({ error: "linkId and email required" });
-  }
+  const { linkId, email, phone } = req.body;
+  if (!linkId) return res.status(400).json({ error: "linkId required" });
+  if (!email && !phone) return res.status(400).json({ error: "Provide at least email or phone" });
 
   try {
     const linkDoc = await links.findOne({ _id: new ObjectId(linkId) });
@@ -204,22 +208,34 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
 
     const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
 
-    await transporter.sendMail({
-      from: process.env.FROM_EMAIL,
-      to: email,
-      subject: "SecurePrint - Document Link",
-      html: `
-        <h2>SecurePrint</h2>
-        <p>You have been sent a document for printing.</p>
-        <p><strong>Open Link:</strong> <a href="${frontendUrl}">${frontendUrl}</a></p>
-        <p><i>This link will expire at: ${linkDoc.expiresAt.toLocaleString()}</i></p>
-      `,
-    });
+    // 📧 Send Email
+    if (email) {
+      await transporter.sendMail({
+        from: process.env.FROM_EMAIL,
+        to: email,
+        subject: "SecurePrint - Document Link",
+        html: `
+          <h2>SecurePrint</h2>
+          <p>You have been sent a document for printing.</p>
+          <p><strong>Open Link:</strong> <a href="${frontendUrl}">${frontendUrl}</a></p>
+          <p><i>This link will expire at: ${linkDoc.expiresAt.toLocaleString()}</i></p>
+        `,
+      });
+    }
 
-    return res.json({ success: true, message: `Link sent to ${email}` });
+    // 📱 Send WhatsApp via Twilio
+    if (phone) {
+      await twilioClient.messages.create({
+        body: `SecurePrint Link: ${frontendUrl}\nOTP: ${linkDoc.otp}\nExpires: ${linkDoc.expiresAt.toLocaleString()}`,
+        from: `whatsapp:${process.env.TWILIO_PHONE}`,
+        to: `whatsapp:${phone}`,
+      });
+    }
+
+    return res.json({ success: true, message: "Link sent successfully" });
   } catch (err) {
     console.error("❌ Send error:", err);
-    return res.status(500).json({ error: "Failed to send email", details: err.message });
+    return res.status(500).json({ error: "Failed to send message", details: err.message });
   }
 });
 
@@ -248,7 +264,7 @@ app.post("/api/link/:id/validate", async (req, res) => {
   return res.json({ success: true, message: "OTP validated" });
 });
 
-// ---- BLOB ROUTE (for React-PDF) ----
+// ---- BLOB ROUTE ----
 app.get("/api/link/:id/blob", async (req, res) => {
   const id = req.params.id;
   const linkDoc = await links.findOne({ _id: new ObjectId(id) });
