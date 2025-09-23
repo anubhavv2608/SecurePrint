@@ -19,6 +19,10 @@ const MONGO_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 const LINK_TTL_SECONDS = Number(process.env.LINK_TTL_SECONDS || 300);
 
+// ✅ define FRONTEND_URL globally once
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "http://localhost:5173";
+
 if (!MONGO_URI) throw new Error("MONGO_URI required in .env");
 
 // ---- MongoDB connection ----
@@ -74,7 +78,12 @@ app.post("/api/auth/signup", async (req, res) => {
   if (existing) return res.status(400).json({ error: "User exists" });
 
   const hash = await bcrypt.hash(password, 10);
-  const result = await users.insertOne({ email, password: hash, name: name || "", createdAt: new Date() });
+  const result = await users.insertOne({
+    email,
+    password: hash,
+    name: name || "",
+    createdAt: new Date(),
+  });
   return res.json({ message: "User registered", id: result.insertedId });
 });
 
@@ -86,7 +95,11 @@ app.post("/api/auth/login", async (req, res) => {
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(400).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign({ id: user._id.toString(), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+  const token = jwt.sign(
+    { id: user._id.toString(), email: user.email },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
   res.json({ token });
 });
 
@@ -171,12 +184,11 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
   }
 
   res.json({
-  linkId: r.insertedId.toString(),
-  expiresAt,
-  url: `${FRONTEND_URL}/shop/${r.insertedId}`,
-  otp, // ⚠️ for demo only
-});
-
+    linkId: r.insertedId.toString(),
+    expiresAt,
+    url: `${FRONTEND_URL}/shop/${r.insertedId}`,
+    otp, // ⚠️ for demo only
+  });
 });
 
 // ---- SEND LINK TO SHOPKEEPER ----
@@ -190,9 +202,7 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
     const linkDoc = await links.findOne({ _id: new ObjectId(linkId) });
     if (!linkDoc) return res.status(404).json({ error: "link not found" });
 
-    const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
     const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
-
 
     await transporter.sendMail({
       from: process.env.FROM_EMAIL,
