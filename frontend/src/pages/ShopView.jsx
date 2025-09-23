@@ -17,12 +17,12 @@ export default function ShopView() {
     setLoading(true);
     setStatus(null);
     try {
-      // 1️⃣ Validate OTP
-      const res = await axios.post(`http://localhost:3000/api/link/${id}/validate`, { otp });
+      // 1️⃣ Validate OTP with deployed backend
+      const res = await axios.post(`${API_BASE}/api/link/${id}/validate`, { otp });
 
       if (res.data.success) {
         // 2️⃣ Fetch PDF as Blob
-        const fileRes = await axios.get(`http://localhost:3000/api/link/${id}/blob`, {
+        const fileRes = await axios.get(`${API_BASE}/api/link/${id}/blob`, {
           responseType: "blob",
         });
 
@@ -39,29 +39,29 @@ export default function ShopView() {
   };
 
   const handlePrint = () => {
-  if (!blobUrl) return;
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.src = blobUrl;
-  document.body.appendChild(iframe);
+    if (!blobUrl) return;
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
 
-  iframe.onload = () => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    iframe.onload = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
 
-    // ✅ Give enough time for print dialog
-    setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-      URL.revokeObjectURL(blobUrl);
-    }, 60000); // wait 60 seconds before cleanup
+      // ✅ Keep iframe long enough for print dialog
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+        URL.revokeObjectURL(blobUrl);
+      }, 60000);
+    };
   };
-};
 
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 text-white p-6 overflow-hidden">

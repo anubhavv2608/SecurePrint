@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FaGoogle, FaGithub } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-
+import API_BASE from "../config";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,28 +42,27 @@ export default function Login() {
   };
 
   // 🔹 Login with backend
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await axios.post("http://localhost:3000/api/auth/login", {
-        email,
-        password,
-      });
+  // 🔹 Login with backend
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const res = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
 
-      if (res.data?.token) {
-        localStorage.setItem("token", res.data.token); // store JWT
-        navigate("/dashboard"); // redirect to dashboard
-      } else {
-        alert("No token received from server.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.error || "Invalid credentials ❌");
-    } finally {
-      setLoading(false);
+    if (res.data?.token) {
+      localStorage.setItem("token", res.data.token); // store JWT
+      navigate("/dashboard"); // redirect to dashboard
+    } else {
+      alert("No token received from server.");
     }
-  };
+  } catch (err) {
+    console.error(err);
+    alert(err.response?.data?.error || "Invalid credentials ❌");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 text-white">

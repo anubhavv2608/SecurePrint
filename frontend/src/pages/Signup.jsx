@@ -4,6 +4,7 @@ import { FaGoogle, FaGithub, FaApple, FaShieldAlt } from "react-icons/fa";
 import { FiMail, FiLock } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import API_BASE from "../config";   // ✅ use API_BASE for backend
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function Signup() {
     }
     setSubmitting(true);
     try {
-      const res = await axios.post("http://localhost:3000/api/auth/signup", {
+      const res = await axios.post(`${API_BASE}/api/auth/signup`, {
         email,
         password,
         name: email.split("@")[0] || "User", // simple name fallback
