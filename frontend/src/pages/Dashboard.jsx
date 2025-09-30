@@ -7,11 +7,10 @@ import {
   FaUserCircle,
   FaTrash,
   FaCheck,
-  FaWhatsapp,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import API_BASE from "../config";   // ✅ dynamic backend URL
+import API_BASE from "../config"; // ✅ dynamic backend URL
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -19,16 +18,14 @@ export default function Dashboard() {
 
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState(null); // { id, name }
-  const [linkInfo, setLinkInfo] = useState(null); // { id, url, otp }
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [linkInfo, setLinkInfo] = useState(null);
   const [shopkeeperEmail, setShopkeeperEmail] = useState("");
-  const [shopkeeperPhone, setShopkeeperPhone] = useState(""); // ✅ phone for WhatsApp
   const [activity, setActivity] = useState([]);
   const [toast, setToast] = useState(null);
 
   const dropRef = useRef(null);
 
-  // ✅ toast helper
   const toastMsg = (msg) => {
     console.log("🔔", msg);
     setToast(msg);
@@ -101,7 +98,7 @@ export default function Dashboard() {
 
       setLinkInfo({
         id: res.data.linkId,
-        url: `${window.location.origin}/shop/${res.data.linkId}`, // ✅ works on any device
+        url: `${window.location.origin}/shop/${res.data.linkId}`,
         otp: res.data.otp,
         expiresAt: res.data.expiresAt,
       });
@@ -113,33 +110,21 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ Send link to shopkeeper (Email + WhatsApp)
+  // ✅ Send link to shopkeeper (Email only)
   const sendToShopkeeper = async () => {
     if (!linkInfo) return toastMsg("Generate a link first.");
-    if (!shopkeeperEmail && !shopkeeperPhone)
-      return toastMsg("Enter shopkeeper email or phone.");
+    if (!shopkeeperEmail) return toastMsg("Enter shopkeeper email.");
 
     try {
       await axios.post(
         `${API_BASE}/api/link/send`,
-        {
-          linkId: linkInfo.id,
-          email: shopkeeperEmail || null,
-          phone: shopkeeperPhone || null,
-        },
+        { linkId: linkInfo.id, email: shopkeeperEmail },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (shopkeeperEmail) {
-        pushActivity(`Sent link to ${shopkeeperEmail}`);
-        toastMsg(`Link sent to ${shopkeeperEmail}`);
-        setShopkeeperEmail("");
-      }
-      if (shopkeeperPhone) {
-        pushActivity(`Sent link to WhatsApp ${shopkeeperPhone}`);
-        toastMsg(`Link sent to WhatsApp ${shopkeeperPhone}`);
-        setShopkeeperPhone("");
-      }
+      pushActivity(`Sent link to ${shopkeeperEmail}`);
+      toastMsg(`Link sent to ${shopkeeperEmail}`);
+      setShopkeeperEmail("");
     } catch (err) {
       console.error("❌ Send error:", err.response?.data || err.message);
       toastMsg(err.response?.data?.error || "Failed to send link");
@@ -286,20 +271,11 @@ export default function Dashboard() {
                 className="mt-4 w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-400"
               />
 
-              {/* WhatsApp phone input */}
-              <input
-                type="tel"
-                value={shopkeeperPhone}
-                onChange={(e) => setShopkeeperPhone(e.target.value)}
-                placeholder="Enter WhatsApp number (e.g. +919876543210)"
-                className="mt-3 w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-2 focus:ring-green-400"
-              />
-
               <button
                 onClick={sendToShopkeeper}
-                className="mt-3 px-4 py-2 w-full rounded-lg bg-gradient-to-r from-green-400 to-emerald-500 font-semibold text-black flex items-center justify-center gap-2"
+                className="mt-3 px-4 py-2 w-full rounded-lg bg-gradient-to-r from-green-400 to-emerald-500 font-semibold text-black"
               >
-                <FaWhatsapp /> Send Link
+                Send Link
               </button>
             </section>
           </div>

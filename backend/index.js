@@ -6,7 +6,6 @@ import multer from "multer";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
-import twilio from "twilio"; // ✅ Twilio import
 import { UsersColl, FilesColl, LinksColl, toObjectId } from "./models.js";
 
 dotenv.config();
@@ -45,12 +44,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ✅ Twilio client setup
-const twilioClient = twilio(
-  process.env.TWILIO_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
 // Verify SMTP
 transporter.verify((error) => {
   if (error) {
@@ -77,7 +70,8 @@ function authMiddleware(req, res, next) {
 // ---- AUTH ----
 app.post("/api/auth/signup", async (req, res) => {
   const { email, password, name } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "email+password required" });
+  if (!email || !password)
+    return res.status(400).json({ error: "email+password required" });
 
   const existing = await users.findOne({ email });
   if (existing) return res.status(400).json({ error: "User exists" });
@@ -160,7 +154,8 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
     (await filesMeta.findOne({ _id: toObjectId(fileId) }));
 
   if (!meta) return res.status(404).json({ error: "file not found" });
-  if (meta.owner !== req.user.id) return res.status(403).json({ error: "forbidden" });
+  if (meta.owner !== req.user.id)
+    return res.status(403).json({ error: "forbidden" });
 
   const otp = makeOtp();
   const expiresAt = new Date(Date.now() + LINK_TTL_SECONDS * 1000);
@@ -196,11 +191,11 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
   });
 });
 
-// ---- SEND LINK TO SHOPKEEPER ----
+// ---- SEND LINK TO SHOPKEEPER (EMAIL ONLY) ----
 app.post("/api/link/send", authMiddleware, async (req, res) => {
-  const { linkId, email, phone } = req.body;
+  const { linkId, email } = req.body;
   if (!linkId) return res.status(400).json({ error: "linkId required" });
-  if (!email && !phone) return res.status(400).json({ error: "Provide at least email or phone" });
+  if (!email) return res.status(400).json({ error: "Provide an email" });
 
   try {
     const linkDoc = await links.findOne({ _id: new ObjectId(linkId) });
@@ -208,34 +203,24 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
 
     const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
 
-    // 📧 Send Email
-    if (email) {
-      await transporter.sendMail({
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: "SecurePrint - Document Link",
-        html: `
-          <h2>SecurePrint</h2>
-          <p>You have been sent a document for printing.</p>
-          <p><strong>Open Link:</strong> <a href="${frontendUrl}">${frontendUrl}</a></p>
-          <p><i>This link will expire at: ${linkDoc.expiresAt.toLocaleString()}</i></p>
-        `,
-      });
-    }
-
-    // 📱 Send WhatsApp via Twilio
-    if (phone) {
-      await twilioClient.messages.create({
-        body: `SecurePrint Link: ${frontendUrl}\nOTP: ${linkDoc.otp}\nExpires: ${linkDoc.expiresAt.toLocaleString()}`,
-        from: `whatsapp:${process.env.TWILIO_PHONE}`,
-        to: `whatsapp:${phone}`,
-      });
-    }
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: email,
+      subject: "SecurePrint - Document Link",
+      html: `
+        <h2>SecurePrint</h2>
+        <p>You have been sent a document for printing.</p>
+        <p><strong>Open Link:</strong> <a href="${frontendUrl}">${frontendUrl}</a></p>
+        <p><i>This link will expire at: ${linkDoc.expiresAt.toLocaleString()}</i></p>
+      `,
+    });
 
     return res.json({ success: true, message: "Link sent successfully" });
   } catch (err) {
     console.error("❌ Send error:", err);
-    return res.status(500).json({ error: "Failed to send message", details: err.message });
+    return res
+      .status(500)
+      .json({ error: "Failed to send message", details: err.message });
   }
 });
 
@@ -248,7 +233,8 @@ app.post("/api/link/:id/validate", async (req, res) => {
 
   const linkDoc = await links.findOne({ _id: new ObjectId(id) });
   if (!linkDoc) return res.status(404).json({ error: "link not found" });
-  if (linkDoc.expiresAt < new Date()) return res.status(403).json({ error: "link expired" });
+  if (linkDoc.expiresAt < new Date())
+    return res.status(403).json({ error: "link expired" });
 
   if (String(linkDoc.otp).trim() !== String(otp).trim()) {
     return res.status(403).json({ error: "invalid otp" });
@@ -270,8 +256,10 @@ app.get("/api/link/:id/blob", async (req, res) => {
   const linkDoc = await links.findOne({ _id: new ObjectId(id) });
 
   if (!linkDoc) return res.status(404).json({ error: "link not found" });
-  if (!linkDoc.validated) return res.status(403).json({ error: "OTP not validated" });
-  if (linkDoc.expiresAt < new Date()) return res.status(403).json({ error: "link expired" });
+  if (!linkDoc.validated)
+    return res.status(403).json({ error: "OTP not validated" });
+  if (linkDoc.expiresAt < new Date())
+    return res.status(403).json({ error: "link expired" });
 
   try {
     const gridId = toObjectId(linkDoc.fileId);
