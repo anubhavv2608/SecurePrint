@@ -46,11 +46,8 @@ const transporter = nodemailer.createTransport({
 
 // Verify SMTP
 transporter.verify((error) => {
-  if (error) {
-    console.error("❌ SMTP connection failed:", error);
-  } else {
-    console.log("✅ SMTP server is ready to send emails");
-  }
+  if (error) console.error("❌ SMTP connection failed:", error);
+  else console.log("✅ SMTP server is ready to send emails");
 });
 
 // ---- Middleware ----
@@ -62,7 +59,7 @@ function authMiddleware(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = payload;
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 }
@@ -83,7 +80,7 @@ app.post("/api/auth/signup", async (req, res) => {
     name: name || "",
     createdAt: new Date(),
   });
-  return res.json({ message: "User registered", id: result.insertedId });
+  res.json({ message: "User registered", id: result.insertedId });
 });
 
 app.post("/api/auth/login", async (req, res) => {
@@ -94,11 +91,7 @@ app.post("/api/auth/login", async (req, res) => {
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(400).json({ error: "Invalid credentials" });
 
-  const token = jwt.sign(
-    { id: user._id.toString(), email: user.email },
-    JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  const token = jwt.sign({ id: user._id.toString(), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
   res.json({ token });
 });
 
@@ -129,18 +122,18 @@ app.post("/api/upload", authMiddleware, upload.single("file"), async (req, res) 
 
         await filesMeta.insertOne(meta);
         res.json({ message: "uploaded", meta });
-      } catch (dbErr) {
+      } catch {
         res.status(500).json({ error: "Failed to save metadata" });
       }
     });
 
     stream.on("error", () => res.status(500).json({ error: "Upload failed" }));
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Server error during upload" });
   }
 });
 
-// ---- LINK GENERATION ----
+// ---- LINK GENERATION (fast response) ----
 function makeOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -154,8 +147,7 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
     (await filesMeta.findOne({ _id: toObjectId(fileId) }));
 
   if (!meta) return res.status(404).json({ error: "file not found" });
-  if (meta.owner !== req.user.id)
-    return res.status(403).json({ error: "forbidden" });
+  if (meta.owner !== req.user.id) return res.status(403).json({ error: "forbidden" });
 
   const otp = makeOtp();
   const expiresAt = new Date(Date.now() + LINK_TTL_SECONDS * 1000);
@@ -172,26 +164,24 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
   };
   const r = await links.insertOne(doc);
 
-  try {
-    await transporter.sendMail({
-      from: process.env.FROM_EMAIL,
-      to: req.user.email,
-      subject: "Your SecurePrint OTP",
-      text: `Your OTP is: ${otp}\nExpires: ${expiresAt.toLocaleString()}`,
-    });
-  } catch (e) {
-    console.warn("📧 OTP email send failed:", e.message);
-  }
-
+  // ✅ Return response immediately
   res.json({
     linkId: r.insertedId.toString(),
     expiresAt,
     url: `${FRONTEND_URL}/shop/${r.insertedId}`,
-    otp, // ⚠️ for demo only
+    otp,
   });
+
+  // ✅ Send email in background (non-blocking)
+  transporter.sendMail({
+    from: process.env.FROM_EMAIL,
+    to: req.user.email,
+    subject: "Your SecurePrint OTP",
+    text: `Your OTP is: ${otp}\nExpires: ${expiresAt.toLocaleString()}`,
+  }).catch(e => console.warn("📧 OTP email send failed:", e.message));
 });
 
-// ---- SEND LINK TO SHOPKEEPER (EMAIL ONLY) ----
+// ---- SEND LINK TO SHOPKEEPER (email only) ----
 app.post("/api/link/send", authMiddleware, async (req, res) => {
   const { linkId, email } = req.body;
   if (!linkId) return res.status(400).json({ error: "linkId required" });
@@ -203,6 +193,7 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
 
     const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
 
+    // ✅ Email async but wait here since it's user-facing
     await transporter.sendMail({
       from: process.env.FROM_EMAIL,
       to: email,
@@ -215,12 +206,10 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
       `,
     });
 
-    return res.json({ success: true, message: "Link sent successfully" });
+    res.json({ success: true, message: "Link sent successfully" });
   } catch (err) {
     console.error("❌ Send error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to send message", details: err.message });
+    res.status(500).json({ error: "Failed to send message", details: err.message });
   }
 });
 
@@ -233,8 +222,7 @@ app.post("/api/link/:id/validate", async (req, res) => {
 
   const linkDoc = await links.findOne({ _id: new ObjectId(id) });
   if (!linkDoc) return res.status(404).json({ error: "link not found" });
-  if (linkDoc.expiresAt < new Date())
-    return res.status(403).json({ error: "link expired" });
+  if (linkDoc.expiresAt < new Date()) return res.status(403).json({ error: "link expired" });
 
   if (String(linkDoc.otp).trim() !== String(otp).trim()) {
     return res.status(403).json({ error: "invalid otp" });
@@ -246,8 +234,7 @@ app.post("/api/link/:id/validate", async (req, res) => {
   );
 
   console.log("🔑 OTP validated for link:", id);
-
-  return res.json({ success: true, message: "OTP validated" });
+  res.json({ success: true, message: "OTP validated" });
 });
 
 // ---- BLOB ROUTE ----
@@ -256,10 +243,8 @@ app.get("/api/link/:id/blob", async (req, res) => {
   const linkDoc = await links.findOne({ _id: new ObjectId(id) });
 
   if (!linkDoc) return res.status(404).json({ error: "link not found" });
-  if (!linkDoc.validated)
-    return res.status(403).json({ error: "OTP not validated" });
-  if (linkDoc.expiresAt < new Date())
-    return res.status(403).json({ error: "link expired" });
+  if (!linkDoc.validated) return res.status(403).json({ error: "OTP not validated" });
+  if (linkDoc.expiresAt < new Date()) return res.status(403).json({ error: "link expired" });
 
   try {
     const gridId = toObjectId(linkDoc.fileId);
