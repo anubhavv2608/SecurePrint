@@ -250,7 +250,7 @@ app.get("/api/link/:id/blob", async (req, res) => {
     const gridId = toObjectId(linkDoc.fileId);
     const downloadStream = bucket.openDownloadStream(gridId);
 
-    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Type", linkDoc.contentType || "application/octet-stream");
     res.setHeader("Cache-Control", "no-store");
 
     console.log("📄 Blob requested for link:", id);
