@@ -34,15 +34,26 @@ const filesMeta = FilesColl(db);
 const links = LinksColl(db);
 
 // ---- Nodemailer (Gmail App Password) ----
+const smtpPort = Number(process.env.SMTP_PORT) || 465;
+
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: smtpPort,
+  secure: smtpPort === 465, // 465 uses true, 587 uses false (STARTTLS)
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
+
+// Helper to fix Render environment variable quotes issue
+const getFromEmail = () => {
+  let email = process.env.FROM_EMAIL || process.env.SMTP_USER;
+  if (email && email.startsWith('"') && email.endsWith('"')) {
+    return email.slice(1, -1);
+  }
+  return email;
+};
 
 // Verify SMTP
 transporter.verify((error) => {
@@ -174,7 +185,7 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
 
   // ✅ Send email in background (non-blocking)
   transporter.sendMail({
-    from: process.env.FROM_EMAIL,
+    from: getFromEmail(),
     to: req.user.email,
     subject: "Your SecurePrint OTP",
     text: `Your OTP is: ${otp}\nExpires: ${expiresAt.toLocaleString()}`,
@@ -195,7 +206,7 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
 
     // ✅ Email async but wait here since it's user-facing
     await transporter.sendMail({
-      from: process.env.FROM_EMAIL,
+      from: getFromEmail(),
       to: email,
       subject: "SecurePrint - Document Link",
       html: `
