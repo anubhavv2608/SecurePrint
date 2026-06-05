@@ -40,27 +40,24 @@ export default function ShopView() {
 
   const handlePrint = () => {
     if (!blobUrl) return;
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.src = blobUrl;
-    document.body.appendChild(iframe);
-
-    iframe.onload = () => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-
-      // ✅ Keep iframe long enough for print dialog
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-        URL.revokeObjectURL(blobUrl);
-      }, 60000);
-    };
+    
+    // The hidden iframe approach for PDFs often fails in modern browsers 
+    // because the PDF plugin refuses to render in a 0x0 or hidden iframe.
+    // The most reliable cross-browser way is to open the Blob in a new tab.
+    const printWindow = window.open(blobUrl, "_blank");
+    
+    if (printWindow) {
+      printWindow.focus();
+    } else {
+      // Fallback in case pop-ups are blocked by the browser
+      alert("Please allow pop-ups to view and print the document.");
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "SecurePrint_Document.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   return (
