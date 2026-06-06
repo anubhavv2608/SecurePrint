@@ -110,11 +110,14 @@ export default function Dashboard() {
     }
   };
 
+  const [sending, setSending] = useState(false);
+
   // ✅ Send link to shopkeeper (Email only)
   const sendToShopkeeper = async () => {
     if (!linkInfo) return toastMsg("Generate a link first.");
     if (!shopkeeperEmail) return toastMsg("Enter shopkeeper email.");
 
+    setSending(true);
     try {
       await axios.post(
         `${API_BASE}/api/link/send`,
@@ -128,6 +131,8 @@ export default function Dashboard() {
     } catch (err) {
       console.error("❌ Send error:", err.response?.data || err.message);
       toastMsg(err.response?.data?.error || "Failed to send link");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -273,9 +278,10 @@ export default function Dashboard() {
 
               <button
                 onClick={sendToShopkeeper}
-                className="mt-3 px-4 py-2 w-full rounded-lg bg-gradient-to-r from-green-400 to-emerald-500 font-semibold text-black"
+                disabled={sending}
+                className="mt-3 px-4 py-2 w-full rounded-lg bg-gradient-to-r from-green-400 to-emerald-500 font-semibold text-black disabled:opacity-50"
               >
-                Send Link
+                {sending ? "Sending..." : "Send Link"}
               </button>
             </section>
           </div>
