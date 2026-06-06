@@ -5,7 +5,7 @@ import { MongoClient, GridFSBucket, ObjectId } from "mongodb";
 import multer from "multer";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { UsersColl, FilesColl, LinksColl, toObjectId } from "./models.js";
 
 dotenv.config();
@@ -33,18 +33,8 @@ const users = UsersColl(db);
 const filesMeta = FilesColl(db);
 const links = LinksColl(db);
 
-// ---- Nodemailer (Gmail App Password) ----
-const smtpPort = Number(process.env.SMTP_PORT) || 465;
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: smtpPort,
-  secure: smtpPort === 465, // 465 uses true, 587 uses false (STARTTLS)
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// ---- Resend API ----
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Helper to fix Render environment variable quotes issue
 const getFromEmail = () => {
@@ -54,12 +44,6 @@ const getFromEmail = () => {
   }
   return email;
 };
-
-// Verify SMTP
-transporter.verify((error) => {
-  if (error) console.error("❌ SMTP connection failed:", error);
-  else console.log("✅ SMTP server is ready to send emails");
-});
 
 // ---- Middleware ----
 function authMiddleware(req, res, next) {
@@ -183,9 +167,9 @@ app.post("/api/link/generate", authMiddleware, async (req, res) => {
     otp,
   });
 
-  // ✅ Send email in background (non-blocking)
-  transporter.sendMail({
-    from: getFromEmail(),
+  // ✅ Send email in background (non-blocking) using Resend
+  resend.emails.send({
+    from: "onboarding@resend.dev", // Resend default for unverified domains
     to: req.user.email,
     subject: "Your SecurePrint OTP",
     text: `Your OTP is: ${otp}\nExpires: ${expiresAt.toLocaleString()}`,
@@ -205,8 +189,8 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
     const frontendUrl = `${FRONTEND_URL}/shop/${linkDoc._id}`;
 
     // ✅ Email async but wait here since it's user-facing
-    await transporter.sendMail({
-      from: getFromEmail(),
+    const { data, error } = await resend.emails.send({
+      from: "onboarding@resend.dev", // Resend default for unverified domains
       to: email,
       subject: "SecurePrint - Document Link",
       html: `
@@ -216,6 +200,11 @@ app.post("/api/link/send", authMiddleware, async (req, res) => {
         <p><i>This link will expire at: ${linkDoc.expiresAt.toLocaleString()}</i></p>
       `,
     });
+
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({ error: "Failed to send message via Resend", details: error.message });
+    }
 
     res.json({ success: true, message: "Link sent successfully" });
   } catch (err) {
