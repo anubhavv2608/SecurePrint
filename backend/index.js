@@ -34,7 +34,7 @@ const filesMeta = FilesColl(db);
 const links = LinksColl(db);
 
 // ---- Resend API ----
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_EqcrnEEs_BPfANxpXddyzdZrKuoeU6LBw");
 
 // Helper to fix Render environment variable quotes issue
 const getFromEmail = () => {
